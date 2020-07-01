@@ -1,0 +1,88 @@
+<style>
+ button.exe, .exe_input { /* 実行ボタン */
+   display: inline-block;
+   margin: 0.5em 1em 0.5em 0em;
+ }
+ table.list {         /* 提出課題一覧の表 */
+   border:1px solid #ccc;
+   border-collapse: collapse;
+ }
+ table.list td {      /* 提出課題一覧の表 */
+   border:1px solid #ccc;
+   padding : 0.3em 1em;
+ }
+ div#drive_folder_ctrl_elems {  /* 上のマージン */
+   margin-top:2em;
+ }
+ body>div {                     /* 全体の左マージン */
+   margin-left:2em;
+ }
+ table.folder_table, table.folder_table td { /* フォルダを表示する表 */
+   border:none;                              /* 枠線を消す (collapseも必要) */
+   border-collapse: collapse;
+ }
+ table.file_table, table.file_table td {     /* ファイルを表示する表 */
+   border:none;                              /* 枠線を消す (collapseも必要) */
+   border-collapse: collapse;
+ }
+ table.folder_table td, table.file_table td { /* ファイル、フォルダの文字 */
+   font-size:90%;                             /* 少し小さく */
+ }
+ table.folder_table th, table.file_table th { /* ファイル、フォルダヘッダの文字 */
+   font-size:80%;                             /* 小さく */
+   color:#aaa;                                /* 薄い色 */
+   font-weight: normal;                       /* 太字にしない */
+ }
+ table.folder_table tr.folder:hover { /* フォルダを表示する箇所で */
+   background-color:#eee;             /* マウスオーバーで色を変更 */
+ }
+ .folder, .folder_move {        /* フォルダとフォルダ移動を表示する箇所で */
+   cursor : pointer;            /* マウスカーソルを変更 */
+ }
+ .folder_move {                 /* フォルダ移動文字の設定 */
+   font-size:90%;
+   margin-right: 1em;
+ }
+ span.margin_left {             /* ファイル、フォルダ一覧での左マージン */
+   margin-left: 1em;
+ }
+ #folder_title{                 /* フォルダタイトル */
+   font-weight: normal;         /* 太字にしない */
+ }
+ tr.image_file {                /* 提出ファイル名前 */
+   font-size:80%;
+ }
+ #settings_menu, #settings_menu_mark { /* 設定メニュー */
+   position:absolute;                  /* 配置を設定 */
+   top: 10px;
+   right: 10px;
+ }
+ #settings_menu:hover > div{          /* メニューをマウスオーバーで表示 */
+   display: block;
+ }
+ #settings_menu_mark {                /* メニュー用三角マーク */
+   border-top: 10px solid #DDD;
+   border-right: 7px solid transparent;
+   border-left: 7px solid transparent;
+ }
+ #settings_menu_panel {          /* 設定メニュー本体 */
+   display: none;                /* メニューの配置と装飾 */
+   position:relative;
+   top : 20px;
+   left : -20px;
+   border: 1px solid #CCC; 
+   border-radius: 5px;
+   background: #F7F7F7;
+   color: #666;
+   font-size: 12px;
+   line-height: 1.6em;
+   padding: 4px;
+ }
+ .settings_menu_panel_item {    /* 設定メニューの項目 */
+   margin: 2px 0;
+   cursor : pointer;            /* マウスカーソルを変更 */
+ }
+ .settings_menu_panel_item:hover {
+   background-color:#eee;       /* マウスオーバーで背景色を変更 */
+ }
+</style>

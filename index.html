@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <?!= HtmlService.createHtmlOutputFromFile('sfv_main.css').getContent(); ?>
+  </head>
+  <body>
+    <div id="settings_menu"></div>
+    <div id="drive_folder_ctrl_elems"></div>
+    <div id="drive_folder_table">データ取得中...</div>
+    <div id="drive_file_ctrl_elems"></div>
+    <div id="drive_file_table"></div>
+    <div id="canvas_table"></div>
+    <?!= HtmlService.createHtmlOutputFromFile('sfv_main.js').getContent(); ?>
+  </body>
+</html>

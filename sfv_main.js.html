@@ -1,0 +1,407 @@
+<script>
+
+ function drawImageLoadingText(ctx,message){
+   // canvas に画像読み込み中のメッセージ表示
+   ctx.font = "20px serif";
+   ctx.fillText(message, 10, 50);
+ }
+
+ const imageElems = {}; // 画像を表示するための div, canvas, image 保存用
+
+ function addButton(targetElem,buttonLabel,updateFunc,showLoading){
+   const btn = document.createElement("button");   // 再読込用のボタンを作成
+   btn.classList.add('exe');
+   btn.innerHTML = buttonLabel;                    // 表示文字列を設定
+   targetElem.appendChild(btn);                    // div にボタンを追加
+   btn.onclick = (e) => {                          // ボタンが押されたときのコールバック
+     const imageElem = imageElems[e.currentTarget.parentNode.id]; // ボタンに対応した要素を取得
+     if(updateFunc){
+       updateFunc(imageElem);                      // 画像描画の情報更新処理
+     }
+     const fid = imageElem.div.id.substring('file_id_'.length);   // id からファイル ID を取得
+     imageElem.image.src = ('https://drive.google.com/uc?export=view&id='+ // 画像の再読込
+			    fid+'&usp=sharing&'+imageElem.div.dataset.reloadCnt)
+     const ctx = imageElem.canvas.getContext('2d');
+     ctx.clearRect(0,0,imageElem.canvas.width,imageElem.canvas.height);          // 画像消去
+     if(showLoading){
+       drawImageLoadingText(ctx,'reloading the image ...');      // 再読み込み中のメッセージ表示
+     }
+     imageElem.image.onload = imageOnLoadFunc(imageElem);
+   };
+ }
+
+ function imageOnLoadFunc(elem){ // image の onload を返す関数
+   return e => {
+     let sideway = elem.div.dataset.rotAngle%180 != 0;  // 横向き（0°、180°ではない）
+     if(elem.canvas.width != elem.div.dataset.imageWidth){
+       elem.canvas.width = elem.div.dataset.imageWidth;            // 画像幅の設定値
+       elem.canvas.height = elem.image.height*elem.div.dataset.imageWidth/elem.image.width;
+     }
+     let cw = elem.canvas.width;
+     let ch = elem.canvas.height;
+     cw = elem.div.dataset.imageWidth;
+     ch = (elem.image.height*elem.div.dataset.imageWidth/elem.image.width);
+     if(elem.canvas.width > elem.canvas.height && sideway){
+       elem.canvas.height = (elem.image.width*elem.div.dataset.imageWidth/
+	 elem.image.height); // 横長のときは canvas サイズを調整
+     }
+     const ctx = elem.canvas.getContext('2d');
+     ctx.clearRect(0,0,elem.canvas.width,elem.canvas.height);          // 画像消去
+     ctx.translate(elem.canvas.width*.5,
+		   elem.canvas.height*.5);    // 回転中心を画像の中心へ移動
+     ctx.rotate(elem.div.dataset.rotAngle * Math.PI / 180); // 座標系を回転
+     if(sideway){                             // 縦横がずれているとき
+       ctx.scale(cw/ch,cw/ch);                // 横幅に合わせて縮小・拡大
+     }
+     ctx.drawImage(elem.image,-cw*.5,-ch*.5,cw,ch); // 画像中心で回転した座標で表示
+     ctx.resetTransform();                          // 座標変換をクリア
+   }
+ }
+
+ function addReloadButton(targetElem,buttonLabel){
+   addButton(targetElem,'再読込',
+	     elem => {
+	       elem.div.dataset.reloadCnt = parseInt(elem.div.dataset.reloadCnt)+1;// 再読込回数
+	     },
+	     true);
+ }
+
+ function addRotButton(targetElem,buttonLabel,addAngle){
+   addButton(targetElem,buttonLabel,
+	     elem => {
+	       elem.div.dataset.rotAngle = parseInt(elem.div.dataset.rotAngle)+addAngle; // 角度更新
+	     },
+	     false);
+ }
+
+ function setupCanvas(){
+   // canvas に画像を読み込んで、画像の下のボタンを配置
+   const list = document.getElementsByClassName('image-canvas');
+   for(let i = 0; i < list.length; i++){
+     const elem = list[i];
+     elem.setAttribute('style','display:block');
+     const fileId = elem.id.substring('file_id_'.length); // Google Drive のファイル ID
+     const canvas = document.createElement('canvas');     // canvas を作成
+     drawImageLoadingText(canvas.getContext('2d'),
+			  'loading a image ...');         // 読み込み中のメッセージ表示
+     canvas.setAttribute('style','display: block;');      // ボタンを下に置くため block 要素にする
+     elem.appendChild(canvas);                            // div に canvas 追加
+     const image = new Image();
+     image.dataset.fileId = elem.id;
+     image.src = ('https://drive.google.com/uc?export=view&id='+
+		  fileId+'&usp=sharing&0');               // 画像読み込み
+     image.onload = (e) => {                              // 画像読み込み後の処理
+       const ctx = canvas.getContext('2d');
+       ctx.clearRect(0,0,canvas.width,canvas.height);     // 画像消去
+       canvas.width = elem.dataset.imageWidth;            // 画像幅の設定値
+       canvas.height = image.height*elem.dataset.imageWidth/image.width;
+       ctx.drawImage(image, 0, 0, canvas.width, canvas.height);     // 画像を描画
+     };
+
+     addReloadButton(elem,'再読込');
+     addRotButton(elem,'左回転',-90);
+     addRotButton(elem,'右回転',90);
+
+     imageElems[elem.id] = {div:elem, canvas, image}; // コールバックで参照するための情報を保存
+   }
+ }
+
+ function setupEmbeddedPdf(){
+   // 埋め込み PDF の表示
+   const list = document.getElementsByClassName('embedded-pdf');
+   for(let i = 0; i < list.length; i++){
+     const elem = list[i];
+     elem.setAttribute('style','display:block');
+   }
+ }
+
+ function addSubmissionShowButtons(fileId,keepedSettings){
+   addShowImageButton(fileId);  // 画像表示ボタンを追加
+
+   let fileTableConditions = {imageWidth:'800',
+			      tableSort: {type:'student_id',style:'asc'},
+			      showImageCheckValue: true};
+   if(keepedSettings){
+     fileTableConditions = keepedSettings;
+   }
+   addTargetSelect(fileTableConditions.submissionTarget);
+   addImageWidthInput(fileTableConditions.imageWidth);
+   addSortSelect(fileTableConditions.tableSort);
+   addShowImageCheckbox(fileTableConditions.showImageCheckValue);
+ }
+
+ function addShowImageButton(fileId){
+   const btn = document.createElement("button");   // 画像表示ボタンを作成
+   btn.classList.add('exe');
+   btn.innerHTML = '課題一覧表示';
+   document.getElementById('drive_file_ctrl_elems').appendChild(btn);// ボタンを追加
+   btn.onclick = e => {                      // ボタンが押されたときのコールバック
+     document.getElementById('drive_file_table').innerHTML = 'データ取得中...';
+     document.getElementById('canvas_table').innerHTML = '';
+     google.script.run.
+	    withSuccessHandler(function(response) {
+	      document.getElementById('drive_file_table').innerHTML = '';
+	      document.getElementById('canvas_table').innerHTML = response;
+	      if(document.getElementById('show_image_checkbox').checked){
+		setupCanvas(); // Canvas の内容を設定
+                setupEmbeddedPdf();
+	      }
+	    }).withFailureHandler(function(response) {
+	      document.getElementById('canvas_table').innerHTML = 'データ取得エラー';
+	    }).makeSubmissionFileTable(
+	      fileId,
+	      {imageWidth:document.getElementById('image_width').value,
+	       tableSort:{type:document.getElementById('sort_type').value,
+			  style:document.getElementById('sort_style').value},
+	       showImageCheckValue:document.getElementById('show_image_checkbox').checked,
+	       submissionTarget:document.getElementById('submission_target').value});
+   }
+ }
+
+ function addImageWidthInput(imageWidthCond){
+   // 画像幅設定の input を作成
+   const label = document.createElement('label');
+   label.innerHTML = '画像幅:';
+   label.classList.add('exe_input');
+   const input = document.createElement('input');
+   label.appendChild(input);
+   input.id = 'image_width';
+   input.setAttribute('type','text'); 
+   input.setAttribute('maxlength','5'); 
+   input.setAttribute('size','3'); 
+   input.setAttribute('value',imageWidthCond);
+   document.getElementById('drive_file_ctrl_elems').appendChild(label);
+ }
+
+ function addSelect(id,labelText,options,targetId,selected,selectChangedFunc){
+   // select を追加する
+   const label = document.createElement('label');
+   label.innerHTML = labelText;
+   label.classList.add('exe_input');
+   const select = document.createElement('select');
+   select.id = id;
+   label.appendChild(select);
+   options.forEach(elem => {
+     const opt = document.createElement('option');
+     opt.value = elem.value;
+     opt.text = elem.text;
+     if(elem.value == selected){
+       opt.setAttribute('selected','selected');
+     }
+     select.appendChild(opt);
+   });
+   if(selectChangedFunc){
+     select.addEventListener('change',selectChangedFunc,false);
+   }
+   document.getElementById(targetId).appendChild(label);
+ }
+
+ function addTargetSelect(submissionTarget){
+   // 表示する課題を選ぶ select
+   addSelect('submission_target','対象課題:',[{value:'turned_in', text:'提出済み・未返却'},
+					      /*{value:'returned',  text:'提出済み・返却済み'}*/],
+	     'drive_file_ctrl_elems',submissionTarget,
+	     e => {
+	       setFileFunctions(e.currentTarget.value); // 値が変わったら背景色も変える
+	     });
+ }
+
+ function addSortSelect(tableSortCond){
+   // ソートの対象を選ぶ select
+   addSelect('sort_type','並べ替え:',[{value:'student_id', text:'学籍番号'},
+				      {value:'submit_time',text:'最終更新日時'}],
+	     'drive_file_ctrl_elems',tableSortCond.type);
+   // ソートの方法を選ぶ select
+   addSelect('sort_style','並べ替え方法:',[{value:'asc', text:'小→大'},
+					   {value:'desc',text:'大→小'}],
+	     'drive_file_ctrl_elems',tableSortCond.style);
+ }
+
+ function setDisplayNone(className){
+   const list = document.getElementsByClassName(className)
+   for(let i = 0; i < list.length; i++){
+     list[i].setAttribute('style','display:none');
+   }
+ }
+
+ function addShowImageCheckbox(showImageCond){
+   // 画像表示有無のチェックボックス追加
+   const label = document.createElement('label');
+   label.innerHTML = '画像表示:';
+   label.classList.add('exe_input');
+   const checkbox = document.createElement('input');
+   checkbox.id = 'show_image_checkbox';
+   checkbox.setAttribute('type','checkbox');
+   if(showImageCond){
+     checkbox.setAttribute('checked','checked');
+   }
+   checkbox.addEventListener('click', e => {
+     // チェックボックスの値が変更されたときの処理
+     if(checkbox.checked){  // チェックあり
+       setupCanvas();       // Canvas の内容を設定
+       setupEmbeddedPdf();  // 埋め込み PDF を表示
+     } else {               // チェックなし
+       setDisplayNone('image-canvas');   // 画像を非表示
+       setDisplayNone('embedded-pdf');    // pdfを非表示
+     }
+   },false);
+   label.appendChild(checkbox);
+   document.getElementById('drive_file_ctrl_elems').appendChild(label);
+ }
+
+ function moveFolder(prevId,fileId){
+   // フォルダの移動
+   document.getElementById('drive_folder_table').innerHTML = ('<h4 id="folder_title">'+
+							      'データ取得中...<h4>');
+   document.getElementById('drive_file_ctrl_elems').innerHTML = '';
+   document.getElementById('drive_file_table').innerHTML = '';
+   document.getElementById('canvas_table').innerHTML = '';
+   makeDriveDataTable(prevId,fileId);
+ }
+
+ function setFolderFunctions(fileId){
+   // フォルダのダブルクリック処理
+   const folders = document.getElementsByClassName('folder');
+   for(let i = 0; i < folders.length; i++){
+     const folder = folders[i];
+     let clickCount = 0 ;
+     folder.addEventListener( "mousedown", e => {
+       if(clickCount == 0){
+	 ++clickCount;
+	 setTimeout( ()=>{
+	   // シングルクリック
+	   clickCount = 0;
+	 },500); // 0.5秒以内をダブルクリックとする
+       } else {
+	 // ダブルクリック
+	 e.preventDefault() ;
+	 clickCount = 0 ;
+	 moveFolder(fileId,folder.dataset.fileId);
+       }
+     });
+   }
+ }
+
+ function setFolderMoveFunctions(fileId){
+   // フォルダ移動の処理を追加
+   const list = document.getElementsByClassName('folder_move');
+   for(let i = 0; i < list.length; i++){
+     const elem = list[i];
+     if(elem.classList.value.indexOf('disable') == -1){
+       elem.onclick = e => {
+	 moveFolder(fileId,elem.dataset.fileId);
+       }
+     } else {
+       elem.setAttribute('style','color:#aaa;'); // フォルダ移動が無効なら字を薄くする
+     }
+   }
+ }
+
+ function setFileFunctions(submissionTarget){
+   // ファイルへの処理を追加
+   const list = document.getElementsByClassName('file');
+   for(let i = 0; i < list.length; i++){
+     const elem = list[i];
+     if(elem.classList[1] == submissionTarget){
+       elem.setAttribute('style','background-color:transparent;'); // 通常の背景
+     } else {
+       elem.setAttribute('style','background-color:#ccc;');        // 背景を暗く
+     }
+     elem.onclick = e => {
+       google.script.run.
+              withSuccessHandler(function(response) {
+		console.log(response);
+              }).withFailureHandler(function(response) {
+		console.log('getFileInfo error');
+              }).getFileInfo(elem.dataset.fileId);
+     }
+   }
+ }
+
+ function makeDriveDataTable(prevId,fileId){
+   // Drive のフォルダとファイルの一覧を作成する
+   google.script.run.
+          withSuccessHandler(function(response) {
+	    document.getElementById('drive_folder_ctrl_elems').innerHTML = response.folderCtrlElems;
+	    document.getElementById('drive_folder_table').innerHTML = response.folder;
+	    document.getElementById('drive_file_table').innerHTML = response.file;
+	    addSubmissionShowButtons(response.fileId,response.fileTableConditions);
+	    setFolderFunctions(response.fileId);  // フォルダのダブルクリック処理を追加
+	    setFolderMoveFunctions(response.fileId);  // フォルダのダブルクリック処理を追加
+	    setFileFunctions(document.getElementById('submission_target').value);
+          }).withFailureHandler(function(response) {
+	    document.getElementById('drive_folder_table').innerHTML = 'データ取得エラー';
+          }).makeDriveDataList(prevId,fileId);
+ }
+
+ function showMessage(targetId,message,time){
+   // 一定時間メッセージを表示する
+   const targetElem = document.getElementById(targetId);
+   const div = document.createElement('div'); // div を生成
+   div.innerHTML = message;
+   targetElem.appendChild(div);
+   setTimeout(()=>{
+     targetElem.removeChild(div);            // 一定時間で div を削除
+   },time);
+ }
+
+ function runDeleteCurrentFolderInfoProperties(){
+   // 初期フォルダの設定を削除
+   google.script.run.
+          withSuccessHandler(function(response) {
+	    showMessage('settings_menu_panel','リセットしました',1500);
+          }).withFailureHandler(function(response) {
+	    showMessage('settings_menu_panel','リセット失敗',1500);
+          }).deleteCurrentFolderInfoProperties();
+ }
+
+ function runDeleteFileTableConditionProperties(){
+   // 課題一覧表示の設定を削除
+   google.script.run.
+          withSuccessHandler(function(response) {
+	    showMessage('settings_menu_panel','リセットしました',1500);
+          }).withFailureHandler(function(response) {
+	    showMessage('settings_menu_panel','リセット失敗',1500);
+          }).deleteFileTableConditionProperties();
+ }
+
+ function runDeleteAllUserProperties(){
+   // PropertiesService で保存している設定を全て削除
+   google.script.run.
+          withSuccessHandler(function(response) {
+	    showMessage('settings_menu_panel','リセットしました',1500);
+          }).withFailureHandler(function(response) {
+	    showMessage('settings_menu_panel','リセット失敗',1500);
+          }).deleteAllUserProperties();
+ }
+
+ function makeSettingsMenu(){
+   // 設定メニューの作成
+   const menu = document.getElementById('settings_menu');
+   const menuMark = document.createElement('div');  // 三角マーク用
+   menuMark.id = 'settings_menu_mark';
+   menu.appendChild(menuMark);
+   const menuPanel = document.createElement('div'); // メニュー本体用
+   menuPanel.id = 'settings_menu_panel';
+   menu.appendChild(menuPanel);
+   // メニュー項目を追加
+   [{id:'reset_current_folder',       text:'初期フォルダ設定リセット',
+     func:runDeleteCurrentFolderInfoProperties},
+    {id:'reset_file_table_condition', text:'課題一覧表示設定リセット',
+     func:runDeleteFileTableConditionProperties},
+    {id:'reset_all_user_settings',    text:'全ての設定をリセット',
+     func:runDeleteAllUserProperties}]
+     .forEach(elem => {
+       const div = document.createElement('div');
+       div.innerHTML = elem.text;
+       div.classList.add('settings_menu_panel_item');
+       div.addEventListener('click',elem.func,false);
+       menuPanel.appendChild(div);
+     });
+ }
+ document.addEventListener('DOMContentLoaded', function() {
+   // DOM 構築後の処理
+   makeDriveDataTable('','');
+   makeSettingsMenu();
+ });
+</script>
