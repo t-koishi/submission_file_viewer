@@ -8,7 +8,7 @@
 
  const imageElems = {}; // 画像を表示するための div, canvas, image 保存用
 
- function addButton(targetElem,buttonLabel,updateFunc,showLoading){
+ function addButton(targetElem,buttonLabel,updateFunc,showLoading,postProcess){
    const btn = document.createElement("button");   // 再読込用のボタンを作成
    btn.classList.add('exe');
    btn.innerHTML = buttonLabel;                    // 表示文字列を設定
@@ -27,6 +27,9 @@
        drawImageLoadingText(ctx,'reloading the image ...');      // 再読み込み中のメッセージ表示
      }
      imageElem.image.onload = imageOnLoadFunc(imageElem);
+     if(postProcess){
+       postProcess(e);
+     }
    };
  }
 
@@ -63,7 +66,13 @@
 	     elem => {
 	       elem.div.dataset.reloadCnt = parseInt(elem.div.dataset.reloadCnt)+1;// 再読込回数
 	     },
-	     true);
+	     true,e => {
+	       // エラーメッセージを削除
+	       const div = e.currentTarget.parentNode.getElementsByClassName('imgErrorMessage');
+	       for(let i = 0; i < div.length; i++){
+		 e.currentTarget.parentNode.removeChild(div[i]);
+	       }
+	     });
  }
 
  function addRotButton(targetElem,buttonLabel,addAngle){
@@ -96,7 +105,14 @@
        canvas.width = elem.dataset.imageWidth;            // 画像幅の設定値
        canvas.height = image.height*elem.dataset.imageWidth/image.width;
        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);     // 画像を描画
-     };
+     }
+
+     image.onerror = (e) => {                             // 画像読み込み失敗のときの処理
+       const imgErrorMessage = document.createElement('div');
+       imgErrorMessage.innerHTML = '※画像読み込みに失敗しました。「再読込」を実行して下さい。';
+       imgErrorMessage.classList.add('imgErrorMessage');
+       elem.appendChild(imgErrorMessage);
+     }
 
      addReloadButton(elem,'再読込');
      addRotButton(elem,'左回転',-90);
