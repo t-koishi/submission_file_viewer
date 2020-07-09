@@ -149,10 +149,10 @@ function makeFileTable(fileList,imageWidth)
 	html += '<br>';
       	html += (`<div class="image-canvas" id="file_id_${file.id}" `+ // 画像用の canvas 追加
       		 `data-reload-cnt="0" data-rot-angle="0" data-image-width="${imageWidth}"></div>`);
-      } else if(matchMime[2] == 'pdf'){
+      } else if(matchMime[2] == 'pdf' || matchMime[2] == 'heif'){
 	html += '<br>';
 	const imageHeight = imageWidth * 1.4141356; // A4 の比率
-	html += (`<iframe class="embedded-pdf" style="display:none;" src="${file.embedLink}" `+
+	html += (`<iframe class="embedded-file" style="display:none;" src="${file.embedLink}" `+
 		 `width="${imageWidth}" height="${imageHeight}"></iframe>`);
       }
       html += '</td>';

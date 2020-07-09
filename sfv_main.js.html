@@ -122,9 +122,9 @@
    }
  }
 
- function setupEmbeddedPdf(){
-   // 埋め込み PDF の表示
-   const list = document.getElementsByClassName('embedded-pdf');
+ function setupEmbeddedFile(){
+   // 埋め込みファイル(pdf,heif)の表示
+   const list = document.getElementsByClassName('embedded-file');
    for(let i = 0; i < list.length; i++){
      const elem = list[i];
      elem.setAttribute('style','display:block');
@@ -160,7 +160,7 @@
 	      document.getElementById('canvas_table').innerHTML = response;
 	      if(document.getElementById('show_image_checkbox').checked){
 		setupCanvas(); // Canvas の内容を設定
-                setupEmbeddedPdf();
+                setupEmbeddedFile();
 	      }
 	    }).withFailureHandler(function(response) {
 	      document.getElementById('canvas_table').innerHTML = 'データ取得エラー';
@@ -255,10 +255,10 @@
      // チェックボックスの値が変更されたときの処理
      if(checkbox.checked){  // チェックあり
        setupCanvas();       // Canvas の内容を設定
-       setupEmbeddedPdf();  // 埋め込み PDF を表示
+       setupEmbeddedFile(); // 埋め込みファイル(pdf,heif)を表示
      } else {               // チェックなし
        setDisplayNone('image-canvas');   // 画像を非表示
-       setDisplayNone('embedded-pdf');    // pdfを非表示
+       setDisplayNone('embedded-file');  // 埋め込みファイル(pdf,heif)を非表示
      }
    },false);
    label.appendChild(checkbox);
