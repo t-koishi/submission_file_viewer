@@ -117,6 +117,18 @@ function makeFileList(fileId,tableSort,submissionTarget)
   return fileList;
 }
 
+function getFileRole(file)
+{
+  // ファイル共有タイプの取得
+  const roleTable = {owner:'オーナー', organizer:'管理者', fileOrganizer:'ファイル管理者',
+		     writer:'編集者', reader:'閲覧者'};
+  let role;
+  if(file.userPermission){
+    role = roleTable[file.userPermission.role];
+  }
+  return role;
+}
+
 function makeFileTable(fileList,imageWidth)
 {
   const mimeRe = /(.+)\/(.+)/;                       // mime解析用正規表現
@@ -135,10 +147,15 @@ function makeFileTable(fileList,imageWidth)
     elem.files.forEach((fileElem,fileIndex) => {               // ファイルのループ
       const file = fileElem.file;
       const matchMime = mimeRe.exec(file.mimeType);       // ファイルの種類を取得
+      const role = getFileRole(file);                     // ファイル共有タイプの取得
       html += '<tr class="image_file">';
       html += (`<td></td><td valign="top">${fileIndex+1}/${fileCnt}</td>`+    // 個数
     	       `<td>${elem.student.id} ${elem.student.name}`+     // 学生ID, 氏名
-    	       ` [${matchMime[1]},${matchMime[2]}]<br>`);     // mime type
+    	       ` [${matchMime[1]},${matchMime[2]}]`);     // mime type
+      if(role){
+	html += ` （ファイル共有:${role}）`;              // ファイル共有タイプ
+      }
+      html += '<br>';
       html += `file_name: ${file.title} [${fileElem.lastUpdatedTime}] `; // ファイル名, 日時
       if(!(matchMime[1] == 'image' && matchMime[2] != 'heif')){ // ファイルが表示可能画像でないとき
 	html += `<img src="${file.iconLink}"> `;                // 目印用にアイコンを表示
