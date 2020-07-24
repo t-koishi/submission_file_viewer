@@ -14,7 +14,8 @@ function makeSubmissionFileTable(fileId,fileTableConditions)
   userProp.setProperty(PROP_KEY_FILE_TABLE_CONDITION,
 		       JSON.stringify(fileTableConditions)); // 課題ファイル表示条件を保存
   return makeFileTable(makeFileList(fileId,fileTableConditions.tableSort,
-				    fileTableConditions.submissionTarget),
+				    fileTableConditions.submissionTarget,
+				    fileTableConditions.getCommentsFlag),
 		       fileTableConditions.imageWidth);
 }
 
@@ -29,11 +30,11 @@ function getFileTableConditions(userProp)
   }
 }
 
-function makeFileList(fileId,tableSort,submissionTarget)
+function makeFileList(fileId,tableSort,submissionTarget,getCommentsFlag)
 {
   const timeZone = Session.getScriptTimeZone();         // 日時作成用にタイムゾーンを取得
   const userFiles = {};                 // ユーザーごとにファイルをまとめるための連想配列
-  const folderContents = getFolderContents(fileId);
+  const folderContents = getFolderContents(fileId,getCommentsFlag);
   const weekJpTable = {Sun:'日', Mon:'月', Tue:'火', Wed:'水', Thu:'木', Fri:'金', Sat:'土'};
   folderContents.files.forEach(file => {
     if((submissionTarget != 'all' && file.submissionType == submissionTarget) ||
@@ -164,12 +165,14 @@ function makeFileTable(fileList,imageWidth)
       }
       html += `<a href="${file.alternateLink}" target="_blank">open</a> `; // open リンク
       // html += `<a href="${file.downloadUrl}">download</a><br>`;  // download リンク
+      html += '<br>';
+      if(file.comments && file.comments.length > 0){
+	html += `コメント数: ${file.comments.length}`;
+      }
       if(matchMime[1] == 'image' && matchMime[2] != 'heif'){   // ファイルが表示可能画像なら
-	html += '<br>';
       	html += (`<div class="image-canvas" id="file_id_${file.id}" `+ // 画像用の canvas 追加
       		 `data-reload-cnt="0" data-rot-angle="0" data-image-width="${imageWidth}"></div>`);
       } else if(matchMime[2] == 'pdf' || matchMime[2] == 'heif'){
-	html += '<br>';
 	const imageHeight = imageWidth * 1.4141356; // A4 の比率
 	html += (`<iframe class="embedded-file" style="display:none;" src="${file.embedLink}" `+
 		 `width="${imageWidth}" height="${imageHeight}"></iframe>`);
@@ -222,7 +225,7 @@ function makeDriveDataList(prevId,fileId)
   if(prevId == null) prevId = '';
   userProp.setProperty(PROP_KEY_CURRENT_FOLDER,JSON.stringify({prevId,fileId}));
   const userEmailAddress = Drive.About.get().user.emailAddress; // 実行ユーザーのメールアドレス取得
-  const folderContents = getFolderContents(fileId);  // fileId フォルダ以下の Drive のデータを取得
+  const folderContents = getFolderContents(fileId,false);  // fileId フォルダ以下の Drive のデータを取得
   const folderTitle = folderContents.folderInfo.title;
   const makeDataTable = (list,isFolder) => {  // table の作成
     let html = '';
@@ -297,7 +300,7 @@ function getParentIdList(id)
   return parentIdList;
 }
 
-function getFolderContents(id)
+function getFolderContents(id,getCommentsFlag)
 {
   // id で指定したフォルダ内のファイル一覧をフォルダとそれ以外に分けて取得する
   // （id='root' のときはマイドライブ直下）
@@ -321,6 +324,11 @@ function getFolderContents(id)
 	if(elem.mimeType == MimeType.FOLDER){  // フォルダを判定
 	  folderContents.folders.push(elem);
 	} else {
+	  if(getCommentsFlag){
+	    // ファイルのコメントを取得
+	    elem.comments =
+	      getPagedDataList(optionalArgs => Drive.Comments.list(elem.id,optionalArgs));
+	  }
 	  folderContents.files.push(elem);
 	}
       }
@@ -387,6 +395,7 @@ function getFileInfo(id)
 	  permission:getPagedDataList(optionalArgs => Drive.Permissions.list(id,optionalArgs)),
 	  revision:getPagedDataList(optionalArgs => Drive.Revisions.list(id,optionalArgs)),
 	  // activity:JSON.stringify(DriveActivity.Activity.query({ancestorName: 'items/'+id}),null,4),
-	  properties:getPagedDataList(optionalArgs => Drive.Properties.list(id,optionalArgs))
+	  properties:getPagedDataList(optionalArgs => Drive.Properties.list(id,optionalArgs)),
+	  comments:getPagedDataList(optionalArgs => Drive.Comments.list(id,optionalArgs))
 	 };
 }

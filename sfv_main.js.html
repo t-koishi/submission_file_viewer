@@ -1,5 +1,91 @@
 <script>
 
+ // オプションメニュー用のオブジェクト
+ class MenuElem {
+   constructor(text,func,toggleValue){
+     this.text = text;
+     this.func = func;
+     if(typeof toggleValue === 'undefined'){
+       this.isToggle = false;
+     } else {
+       this.isToggle = true;
+       this.toggleValue = toggleValue;
+     }
+   }
+   getText(){
+     if(this.isToggle){ // トグル用オブジェクトのテキストには ON/OFF が付く
+       return this.text+' '+(this.toggleValue ? '<b>ON</b> → OFF':'<b>OFF</b> → ON');
+     } else {
+       return this.text;
+     }
+   }
+   toggle(){
+     if(this.isToggle){
+       this.toggleValue = !this.toggleValue;
+     }
+   }   
+   setToggleValue(toggleValue){
+     if(this.isToggle){
+       this.toggleValue = toggleValue;
+     }
+   }
+ }
+
+ function runDeleteCurrentFolderInfoProperties(){
+   // 初期フォルダの設定を削除
+   google.script.run.
+          withSuccessHandler(function(response) {
+	    showMessage('settings_menu_panel','リセットしました',1500);
+          }).withFailureHandler(function(response) {
+	    showMessage('settings_menu_panel','リセット失敗',1500);
+          }).deleteCurrentFolderInfoProperties();
+ }
+
+ function runDeleteFileTableConditionProperties(){
+   // 課題一覧表示の設定を削除
+   google.script.run.
+          withSuccessHandler(function(response) {
+	    showMessage('settings_menu_panel','リセットしました',1500);
+          }).withFailureHandler(function(response) {
+	    showMessage('settings_menu_panel','リセット失敗',1500);
+          }).deleteFileTableConditionProperties();
+ }
+
+ function runDeleteAllUserProperties(){
+   // PropertiesService で保存している設定を全て削除
+   google.script.run.
+          withSuccessHandler(function(response) {
+	    showMessage('settings_menu_panel','リセットしました',1500);
+          }).withFailureHandler(function(response) {
+	    showMessage('settings_menu_panel','リセット失敗',1500);
+          }).deleteAllUserProperties();
+ }
+
+ function setToggleGetCommentsValue(value){
+   // コメント数取得のトグル値を設定
+   menuList.toggle_get_comments.setToggleValue(value);
+   const elem = document.getElementById('toggle_get_comments');
+   elem.innerHTML = menuList.toggle_get_comments.getText();
+ }
+
+ function toggleGetComments(){
+   // コメント数取得の値をトグル
+   menuList.toggle_get_comments.toggle();
+   const elem = document.getElementById('toggle_get_comments');
+   elem.innerHTML = menuList.toggle_get_comments.getText();
+ }
+
+ // オプションメニュー一覧
+ const menuList = {toggle_get_comments: new MenuElem('コメント数取得',
+						     toggleGetComments,true),
+		   sep: new MenuElem('hr'), // 横線
+		   reset_current_folder: new MenuElem('初期フォルダ設定リセット',
+						      runDeleteCurrentFolderInfoProperties),
+		   reset_file_table_condition: new MenuElem('課題一覧表示設定リセット',
+							    runDeleteFileTableConditionProperties),
+		   reset_all_user_settings: new MenuElem('全ての設定をリセット',
+							 runDeleteAllUserProperties)};
+ 
  function drawImageLoadingText(ctx,message){
    // canvas に画像読み込み中のメッセージ表示
    ctx.font = "20px serif";
@@ -152,9 +238,14 @@
    btn.innerHTML = '課題一覧表示';
    document.getElementById('drive_file_show_list').appendChild(btn);// ボタンを追加
    btn.onclick = e => {                      // ボタンが押されたときのコールバック
-     document.getElementById('drive_file_table').innerHTML = 'データ取得中...';
+     let dataReadingMessage = 'データ取得中...';
+     if(menuList.toggle_get_comments.toggleValue){
+       dataReadingMessage +=
+	 ('<span style="font-size:80%">　'+
+	  '（「コメント数取得」がONのときはデータ取得が遅くなります）<span>');
+     }
+     document.getElementById('drive_file_table').innerHTML = dataReadingMessage;
      document.getElementById('canvas_table').innerHTML = '';
-     console.log(document.getElementById('submission_target').value);
      google.script.run.
 	    withSuccessHandler(function(response) {
 	      document.getElementById('drive_file_table').innerHTML = '';
@@ -171,7 +262,8 @@
 	       tableSort:{type:document.getElementById('sort_type').value,
 			  style:document.getElementById('sort_style').value},
 	       showImageCheckValue:document.getElementById('show_image_checkbox').checked,
-	       submissionTarget:document.getElementById('submission_target').value});
+	       submissionTarget:document.getElementById('submission_target').value,
+	       getCommentsFlag:menuList.toggle_get_comments.toggleValue});
    }
  }
 
@@ -366,6 +458,11 @@
    }
  }
 
+ function setMenuValue(keepedSettings){
+   // オプションメニューの値を設定
+   setToggleGetCommentsValue(keepedSettings.getCommentsFlag); // コメント数取得のトグル値を設定
+ }
+
  function makeDriveDataTable(prevId,fileId){
    // Drive のフォルダとファイルの一覧を作成する
    google.script.run.
@@ -374,6 +471,7 @@
 	    document.getElementById('drive_folder_table').innerHTML = response.folder;
 	    document.getElementById('drive_file_table').innerHTML = response.file;
 	    addSubmissionShowButtons(response.fileId,response.fileTableConditions);
+	    setMenuValue(response.fileTableConditions);
 	    setFolderFunctions(response.fileId);  // フォルダのダブルクリック処理を追加
 	    setFolderMoveFunctions(response.fileId);  // フォルダのダブルクリック処理を追加
 	    const submissionTargetValue = document.getElementById('submission_target').value;
@@ -396,36 +494,6 @@
    },time);
  }
 
- function runDeleteCurrentFolderInfoProperties(){
-   // 初期フォルダの設定を削除
-   google.script.run.
-          withSuccessHandler(function(response) {
-	    showMessage('settings_menu_panel','リセットしました',1500);
-          }).withFailureHandler(function(response) {
-	    showMessage('settings_menu_panel','リセット失敗',1500);
-          }).deleteCurrentFolderInfoProperties();
- }
-
- function runDeleteFileTableConditionProperties(){
-   // 課題一覧表示の設定を削除
-   google.script.run.
-          withSuccessHandler(function(response) {
-	    showMessage('settings_menu_panel','リセットしました',1500);
-          }).withFailureHandler(function(response) {
-	    showMessage('settings_menu_panel','リセット失敗',1500);
-          }).deleteFileTableConditionProperties();
- }
-
- function runDeleteAllUserProperties(){
-   // PropertiesService で保存している設定を全て削除
-   google.script.run.
-          withSuccessHandler(function(response) {
-	    showMessage('settings_menu_panel','リセットしました',1500);
-          }).withFailureHandler(function(response) {
-	    showMessage('settings_menu_panel','リセット失敗',1500);
-          }).deleteAllUserProperties();
- }
-
  function makeSettingsMenu(){
    // 設定メニューの作成
    const menu = document.getElementById('settings_menu');
@@ -436,19 +504,19 @@
    menuPanel.id = 'settings_menu_panel';
    menu.appendChild(menuPanel);
    // メニュー項目を追加
-   [{id:'reset_current_folder',       text:'初期フォルダ設定リセット',
-     func:runDeleteCurrentFolderInfoProperties},
-    {id:'reset_file_table_condition', text:'課題一覧表示設定リセット',
-     func:runDeleteFileTableConditionProperties},
-    {id:'reset_all_user_settings',    text:'全ての設定をリセット',
-     func:runDeleteAllUserProperties}]
-     .forEach(elem => {
+   Object.keys(menuList).forEach(key => {
+     const elem = menuList[key];
+     if(elem.text == 'hr'){
+       menuPanel.appendChild(document.createElement('hr'));
+     } else {
        const div = document.createElement('div');
-       div.innerHTML = elem.text;
+       div.id = key;
+       div.innerHTML = elem.getText();
        div.classList.add('settings_menu_panel_item');
        div.addEventListener('click',elem.func,false);
        menuPanel.appendChild(div);
-     });
+     }
+   });
  }
  document.addEventListener('DOMContentLoaded', function() {
    // DOM 構築後の処理
