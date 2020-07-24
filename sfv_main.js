@@ -36,7 +36,9 @@ function makeFileList(fileId,tableSort,submissionTarget)
   const folderContents = getFolderContents(fileId);
   const weekJpTable = {Sun:'日', Mon:'月', Tue:'火', Wed:'水', Thu:'木', Fri:'金', Sat:'土'};
   folderContents.files.forEach(file => {
-    if(file.submissionType == submissionTarget){
+    if((submissionTarget != 'all' && file.submissionType == submissionTarget) ||
+       (submissionTarget == 'all' && (file.submissionType == 'turned_in' ||
+				      file.submissionType == 'returned'))){
       const email = file.sharingUser.emailAddress;
       let studentId = email;                      // 学生IDをを仮設定
       if(typeof getStudentId == 'function'){

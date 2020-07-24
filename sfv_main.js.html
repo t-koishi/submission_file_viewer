@@ -150,10 +150,11 @@
    const btn = document.createElement("button");   // 画像表示ボタンを作成
    btn.classList.add('exe');
    btn.innerHTML = '課題一覧表示';
-   document.getElementById('drive_file_ctrl_elems').appendChild(btn);// ボタンを追加
+   document.getElementById('drive_file_show_list').appendChild(btn);// ボタンを追加
    btn.onclick = e => {                      // ボタンが押されたときのコールバック
      document.getElementById('drive_file_table').innerHTML = 'データ取得中...';
      document.getElementById('canvas_table').innerHTML = '';
+     console.log(document.getElementById('submission_target').value);
      google.script.run.
 	    withSuccessHandler(function(response) {
 	      document.getElementById('drive_file_table').innerHTML = '';
@@ -186,7 +187,7 @@
    input.setAttribute('maxlength','5'); 
    input.setAttribute('size','3'); 
    input.setAttribute('value',imageWidthCond);
-   document.getElementById('drive_file_ctrl_elems').appendChild(label);
+   document.getElementById('drive_file_show_list').appendChild(label);
  }
 
  function addSelect(id,labelText,options,targetId,selected,selectChangedFunc){
@@ -212,25 +213,55 @@
    document.getElementById(targetId).appendChild(label);
  }
 
+ function getSubmissionTypeCheckFunc(value){
+   // 「対象課題」の select の値に応じて背景を暗くするファイルの対象を決める条件を返す
+   let submissionTypeCheck;
+   if(value == 'turned_in' || value == 'returned'){
+     submissionTypeCheck = submissionType => submissionType == value;
+   } else if(value == 'all'){
+     submissionTypeCheck = submissionType => (submissionType == 'turned_in' ||
+					      submissionType == 'returned');
+   }
+   return submissionTypeCheck;
+ }
+
+ function setFileTargetSelectNote(elem,value){
+   // 「対象課題」の select の値に応じて注意書きの表示を変える
+   if(value == 'turned_in' || value == 'returned'){
+     elem.innerHTML = '';
+   } else if(value == 'all'){
+     elem.innerHTML = ('※「提出済み全て」は、提出後取り消し、提出済み・未返却、'+
+		       '提出済み・返却済み等の一度提出されたファイルを全て含みます');
+   }
+ }
+
  function addTargetSelect(submissionTarget){
+   // 表示する課題を選ぶ select の注意書き
+   const note = document.createElement('span');
+   note.id = 'drive_file_target_select_note';
+
    // 表示する課題を選ぶ select
    addSelect('submission_target','対象課題:',[{value:'turned_in', text:'提出済み・未返却'},
-					      /*{value:'returned',  text:'提出済み・返却済み'}*/],
-	     'drive_file_ctrl_elems',submissionTarget,
+					      // {value:'returned',  text:'提出済み・返却済み'},
+					      {value:'all',  text:'提出済み全て（※）'}],
+	     'drive_file_target_select',submissionTarget,
 	     e => {
-	       setFileFunctions(e.currentTarget.value); // 値が変わったら背景色も変える
+	       const submissionTypeCheckFunc = getSubmissionTypeCheckFunc(e.currentTarget.value);
+	       setFileFunctions(submissionTypeCheckFunc); // 値が変わったら背景色も変える
+	       setFileTargetSelectNote(note,e.currentTarget.value); //対象課題選択の注意書き用の処理
 	     });
+   document.getElementById('drive_file_target_select').appendChild(note);
  }
 
  function addSortSelect(tableSortCond){
    // ソートの対象を選ぶ select
    addSelect('sort_type','並べ替え:',[{value:'student_id', text:'学籍番号'},
 				      {value:'submit_time',text:'最終更新日時'}],
-	     'drive_file_ctrl_elems',tableSortCond.type);
+	     'drive_file_show_list',tableSortCond.type);
    // ソートの方法を選ぶ select
    addSelect('sort_style','並べ替え方法:',[{value:'asc', text:'小→大'},
 					   {value:'desc',text:'大→小'}],
-	     'drive_file_ctrl_elems',tableSortCond.style);
+	     'drive_file_show_list',tableSortCond.style);
  }
 
  function setDisplayNone(className){
@@ -262,14 +293,15 @@
      }
    },false);
    label.appendChild(checkbox);
-   document.getElementById('drive_file_ctrl_elems').appendChild(label);
+   document.getElementById('drive_file_show_list').appendChild(label);
  }
 
  function moveFolder(prevId,fileId){
    // フォルダの移動
    document.getElementById('drive_folder_table').innerHTML = ('<h4 id="folder_title">'+
 							      'データ取得中...<h4>');
-   document.getElementById('drive_file_ctrl_elems').innerHTML = '';
+   document.getElementById('drive_file_target_select').innerHTML = '';
+   document.getElementById('drive_file_show_list').innerHTML = '';
    document.getElementById('drive_file_table').innerHTML = '';
    document.getElementById('canvas_table').innerHTML = '';
    makeDriveDataTable(prevId,fileId);
@@ -313,12 +345,12 @@
    }
  }
 
- function setFileFunctions(submissionTarget){
+ function setFileFunctions(submissionTypeCheck){
    // ファイルへの処理を追加
    const list = document.getElementsByClassName('file');
    for(let i = 0; i < list.length; i++){
      const elem = list[i];
-     if(elem.classList[1] == submissionTarget){
+     if(submissionTypeCheck(elem.classList[1])){
        elem.setAttribute('style','background-color:transparent;'); // 通常の背景
      } else {
        elem.setAttribute('style','background-color:#ccc;');        // 背景を暗く
@@ -344,7 +376,10 @@
 	    addSubmissionShowButtons(response.fileId,response.fileTableConditions);
 	    setFolderFunctions(response.fileId);  // フォルダのダブルクリック処理を追加
 	    setFolderMoveFunctions(response.fileId);  // フォルダのダブルクリック処理を追加
-	    setFileFunctions(document.getElementById('submission_target').value);
+	    const submissionTargetValue = document.getElementById('submission_target').value;
+	    setFileFunctions(getSubmissionTypeCheckFunc(submissionTargetValue));//ファイル背景色設定
+	    setFileTargetSelectNote(document.getElementById('drive_file_target_select_note'),
+				    submissionTargetValue); // 対象課題選択の注意書き設定
           }).withFailureHandler(function(response) {
 	    document.getElementById('drive_folder_table').innerHTML = 'データ取得エラー';
           }).makeDriveDataList(prevId,fileId);
