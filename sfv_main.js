@@ -153,13 +153,16 @@ function makeFileTable(fileList,imageWidth)
       const role = getFileRole(file);                     // ファイル共有タイプの取得
       html += '<tr class="image_file">';
       html += (`<td></td><td valign="top">${fileIndex+1}/${fileCnt}</td>`+    // 個数
-    	       `<td>${elem.student.id} ${elem.student.name}`+     // 学生ID, 氏名
-    	       ` [${matchMime[1]},${matchMime[2]}]`);     // mime type
+    	       `<td data-email="${file.sharingUser.emailAddress}">`+
+	       `<span class="student-id">${elem.student.id}</span> `+         // 学生ID
+	       `<span class="student-name">${elem.student.name}</span> `+     // 学生氏名
+    	       `<span class="file-mime-type">[${matchMime[1]},${matchMime[2]}]</span>`);// mime type
       if(role){
-	html += ` （ファイル共有:${role}）`;              // ファイル共有タイプ
+	html += ` （ファイル共有:<span class="file-role">${role}</span>）`;  // ファイル共有タイプ
       }
       html += '<br>';
-      html += `file_name: ${file.title} [${fileElem.lastUpdatedTime}] `; // ファイル名, 日時
+      html += (`file_name: <span class="file-name">${file.title}</span> `+     // ファイル名
+	       `[<span class="file-datetime">${fileElem.lastUpdatedTime}</span>] `); // 日時
       if(!(matchMime[1] == 'image' && matchMime[2] != 'heif')){ // ファイルが表示可能画像でないとき
 	html += `<img src="${file.iconLink}"> `;                // 目印用にアイコンを表示
       }
@@ -398,4 +401,13 @@ function getFileInfo(id)
 	  properties:getPagedDataList(optionalArgs => Drive.Properties.list(id,optionalArgs)),
 	  comments:getPagedDataList(optionalArgs => Drive.Comments.list(id,optionalArgs))
 	 };
+}
+
+function outputCsv(csvData,folderTitle)
+{
+  const timeZone = Session.getScriptTimeZone();         // 日時作成用にタイムゾーンを取得
+  const datetime = Utilities.formatDate(new Date(), timeZone, 'yyyyMMdd_HHmm');
+  const outputFileName = `${folderTitle}_${datetime}_files.csv`;
+  DriveApp.createFile(outputFileName, csvData);
+  return outputFileName;
 }

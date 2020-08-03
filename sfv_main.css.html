@@ -9,6 +9,7 @@
  }
  span#drive_file_target_select_note { /* 対象課題選択の注意書き */
    font-size:80%;
+   color:#b00;
  }
  table.list {         /* 提出課題一覧の表 */
    border:1px solid #ccc;
@@ -74,9 +75,9 @@
  }
  #settings_menu_panel {          /* 設定メニュー本体 */
    display: none;                /* メニューの配置と装飾 */
-   position:relative;
+   position:absolute;
    top : 20px;
-   left : -20px;
+   left : -170px;
    border: 1px solid #CCC; 
    border-radius: 5px;
    background: #F7F7F7;
@@ -91,5 +92,17 @@
  }
  .settings_menu_panel_item:hover {
    background-color:#eee;       /* マウスオーバーで背景色を変更 */
+ }
+ .message_panel {               /* メッセージ表示用 */
+   position:absolute;
+   top : 0px;
+   left : -170px;
+   border: 1px solid #CCC; 
+   border-radius: 5px;
+   background: #FCFCFC;
+   color: #666;
+   font-size: 12px;
+   line-height: 1.6em;
+   padding: 4px;
  }
 </style>
