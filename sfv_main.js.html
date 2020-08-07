@@ -2,7 +2,7 @@
 
  // オプションメニュー用のオブジェクト
  class MenuElem {
-   constructor(text,func,toggleValue){
+   constructor(text,func,toggleValue,toggleApplyFunc){
      this.text = text;
      this.func = func;
      if(typeof toggleValue === 'undefined'){
@@ -10,8 +10,9 @@
      } else {
        this.isToggle = true;
        this.toggleValue = toggleValue;
+       this.toggleApplyFunc = toggleApplyFunc;
      }
-     this.initialHide = false; // デフォルで非表示にするフラグ
+     this.initialHide = false; // デフォルトでメニューには表示しないようにするフラグ
    }
    getText(){
      if(this.isToggle){ // トグル用オブジェクトのテキストには ON/OFF が付く
@@ -28,6 +29,11 @@
    setToggleValue(toggleValue){
      if(this.isToggle){
        this.toggleValue = toggleValue;
+     }
+   }
+   applyToggleValue(){ // トグル値の設定を反映させる関数
+     if(this.isToggle){
+       this.toggleApplyFunc();
      }
    }
  }
@@ -62,18 +68,29 @@
           }).deleteAllUserProperties();
  }
 
- function setToggleGetCommentsValue(value){
-   // コメント数取得のトグル値を設定
-   menuList.toggle_get_comments.setToggleValue(value);
-   const elem = document.getElementById('toggle_get_comments');
-   elem.innerHTML = menuList.toggle_get_comments.getText();
+ function setToggleValue(id,value){
+   // オプションメニューのトグル値を設定
+   menuList[id].setToggleValue(value);
+   const elem = document.getElementById(id);
+   elem.innerHTML = menuList[id].getText();
  }
 
- function toggleGetComments(){
+ function toggleMenu(elem){
+   // オプションメニューのトグル処理
+   const id = elem.id;
+   menuList[id].toggle();
+   elem.innerHTML = menuList[id].getText();
+ }
+
+ function toggleGetComments(e){
    // コメント数取得の値をトグル
-   menuList.toggle_get_comments.toggle();
-   const elem = document.getElementById('toggle_get_comments');
-   elem.innerHTML = menuList.toggle_get_comments.getText();
+   toggleMenu(e.currentTarget);
+ }
+
+ function toggleShowCopyButton(e){
+   // 「ファイルコピー」ボタン表示のトグル
+   toggleMenu(e.currentTarget);
+   menuList[e.currentTarget.id].applyToggleValue();
  }
 
  function outputFileInfoCsv(){
@@ -122,7 +139,16 @@
 
  // オプションメニュー一覧
  const menuList = {toggle_get_comments: new MenuElem('コメント数取得',
-						     toggleGetComments,true),
+						     toggleGetComments,false),
+		   toggle_show_copy_button: new MenuElem('「ファイルコピー」表示',
+							 toggleShowCopyButton,false,
+							 //
+		     function(){ // トグル値を反映させる関数
+		       const displayValue = this.toggleValue ? 'block;':'none;';
+		       document.getElementById('drive_file_copy_file').
+				setAttribute('style','display:'+ displayValue);
+		     }
+		   ),
 		   sep1: new MenuElem('hr'), // 横線
 		   output_file_info_csv: new MenuElem('ファイル一覧csv出力',
 						      outputFileInfoCsv),
@@ -289,6 +315,17 @@
    addShowImageCheckbox(fileTableConditions.showImageCheckValue);
  }
 
+ function getConditionsForPropertiesService(){
+   // PropertiesService で保存する値を取得
+   return {imageWidth:document.getElementById('image_width').value,
+	   tableSort:{type:document.getElementById('sort_type').value,
+		      style:document.getElementById('sort_style').value},
+	   showImageCheckValue:document.getElementById('show_image_checkbox').checked,
+	   submissionTarget:document.getElementById('submission_target').value,
+	   getCommentsFlag:menuList.toggle_get_comments.toggleValue,
+	   showFileCopyButonFlag:menuList.toggle_show_copy_button.toggleValue};
+ }
+
  function addShowImageButton(fileId){
    const btn = document.createElement("button");   // 画像表示ボタンを作成
    btn.classList.add('exe');
@@ -314,14 +351,79 @@
 	      }
 	    }).withFailureHandler(function(response) {
 	      document.getElementById('canvas_table').innerHTML = 'データ取得エラー';
-	    }).makeSubmissionFileTable(
-	      fileId,
-	      {imageWidth:document.getElementById('image_width').value,
-	       tableSort:{type:document.getElementById('sort_type').value,
-			  style:document.getElementById('sort_style').value},
-	       showImageCheckValue:document.getElementById('show_image_checkbox').checked,
-	       submissionTarget:document.getElementById('submission_target').value,
-	       getCommentsFlag:menuList.toggle_get_comments.toggleValue});
+	    }).makeSubmissionFileTable(fileId,getConditionsForPropertiesService());
+   }
+ }
+
+ function addOutputTableLine(label,text,targetElem){
+   // ファイルコピーの結果表示用
+   const tableId = targetElem.id+'_table';
+   const table = (document.getElementById(tableId) ||
+		  document.createElement('table'));    // テーブルがなかったら作る
+   if(!table.id){
+     table.id = tableId;
+   }
+   const tr = document.createElement('tr');
+   table.appendChild(tr);
+   const addText = text => {
+     const td = document.createElement('td');
+     td.insertAdjacentHTML('beforeend',text);
+     tr.appendChild(td);
+   }
+   addText(`【${label}】`);  // 項目名を追加
+   addText(text);            // その項目に対応する値を追加
+   targetElem.appendChild(table);
+ }
+
+ function addFileCopyButton(fileId,targetFileCnt){
+   // 「ファイルコピー」のボタンを追加
+   const btn = document.createElement('button');   // ファイルコピーボタンを作成
+   btn.id = 'drive_file_copy_file_button';
+   btn.classList.add('exe');
+   btn.innerHTML = 'ファイルコピー';
+   const parent = document.getElementById('drive_file_copy_file');
+   btn.onclick = e => {                      // ボタンが押されたときのコールバック
+     const output = document.getElementById('drive_file_table');
+     output.innerHTML = 'コピー中 ... ';
+     google.script.run.
+            withSuccessHandler(function(response) {
+	      output.innerHTML = '';
+	      addOutputTableLine('出力フォルダ名',response.outputFolderName,output);
+	      addOutputTableLine('対象ファイル数',response.result.targetFileCnt,output);
+	      addOutputTableLine('コピーファイル数',response.result.copyFileCnt,output);
+	      addOutputTableLine('既存ファイル数',response.result.skipFileCnt,output);
+	      addOutputTableLine('実行結果',!response.result.error ? '正常終了':'エラー',output);
+            }).withFailureHandler(function(response) {
+	      output.innerHTML = 'コピーエラー';
+            }).runCopy(fileId,getConditionsForPropertiesService());
+   }
+   parent.appendChild(btn);
+
+   const note = document.createElement('span');
+   note.id = 'drive_file_copy_file_note';
+   const foldrTitle = document.getElementById('folder_title').innerHTML;
+   note.innerHTML =
+     `（「マイドライブ / Classroom_archives /（科目名）/ copied_submission_files / `+
+     `${foldrTitle}」に「課題対象」で対象に指定されているファイルをコピーします）`;
+   parent.appendChild(note);
+
+   changeFileCopyButtonStatus(targetFileCnt,btn,note);
+ }
+
+ function changeFileCopyButtonStatus(targetFileCnt,btn,note){
+   // ファイルコピーボタンの状態を対象ファイル数に応じて設定
+   if(!note){
+     note = document.getElementById('drive_file_copy_file_note');
+   }
+   if(!btn){
+     btn = document.getElementById('drive_file_copy_file_button');
+   }
+   if(targetFileCnt > 0){                         // 対象ファイルがあるとき
+     note.setAttribute('style','display:inline; font-size:80%;'); // 注意書きを表示
+     btn.removeAttribute('disabled');             // ボタンを有効化
+   } else {                                       // 対象ファイルがないとき
+     note.setAttribute('style','display:none;');  // 注意書きを非表示
+     btn.setAttribute("disabled", true);          // ボタンを無効化
    }
  }
 
@@ -397,8 +499,9 @@
 	     'drive_file_target_select',submissionTarget,
 	     e => {
 	       const submissionTypeCheckFunc = getSubmissionTypeCheckFunc(e.currentTarget.value);
-	       setFileFunctions(submissionTypeCheckFunc); // 値が変わったら背景色も変える
+	       const targetFileCnt = setFileFunctions(submissionTypeCheckFunc); // 値が変わったら背景色も変える
 	       setFileTargetSelectNote(note,e.currentTarget.value); //対象課題選択の注意書き用の処理
+	       changeFileCopyButtonStatus(targetFileCnt);
 	     });
    document.getElementById('drive_file_target_select').appendChild(note);
  }
@@ -452,6 +555,7 @@
 							      'データ取得中...<h4>');
    document.getElementById('drive_file_target_select').innerHTML = '';
    document.getElementById('drive_file_show_list').innerHTML = '';
+   document.getElementById('drive_file_copy_file').innerHTML = '';
    document.getElementById('drive_file_table').innerHTML = '';
    document.getElementById('canvas_table').innerHTML = '';
    makeDriveDataTable(prevId,fileId);
@@ -497,11 +601,13 @@
 
  function setFileFunctions(submissionTypeCheck){
    // ファイルへの処理を追加
+   let targetFileCnt = 0;
    const list = document.getElementsByClassName('file');
    for(let i = 0; i < list.length; i++){
      const elem = list[i];
      if(submissionTypeCheck(elem.classList[1])){
        elem.setAttribute('style','background-color:transparent;'); // 通常の背景
+       targetFileCnt++;
      } else {
        elem.setAttribute('style','background-color:#ccc;');        // 背景を暗く
      }
@@ -514,11 +620,20 @@
               }).getFileInfo(elem.dataset.fileId);
      }
    }
+   return targetFileCnt;
  }
 
  function setMenuValue(keepedSettings){
    // オプションメニューの値を設定
-   setToggleGetCommentsValue(keepedSettings.getCommentsFlag); // コメント数取得のトグル値を設定
+   if(keepedSettings.getCommentsFlag){
+     setToggleValue('toggle_get_comments',
+		    keepedSettings.getCommentsFlag);       // コメント数取得のトグル値を設定
+   }
+   if(keepedSettings.showFileCopyButonFlag){
+     setToggleValue('toggle_show_copy_button',
+		    keepedSettings.showFileCopyButonFlag); // 「ファイルコピー」表示のトグル値を設定
+   }
+   menuList.toggle_show_copy_button.applyToggleValue();
  }
 
  function makeDriveDataTable(prevId,fileId){
@@ -529,13 +644,14 @@
 	    document.getElementById('drive_folder_table').innerHTML = response.folder;
 	    document.getElementById('drive_file_table').innerHTML = response.file;
 	    addSubmissionShowButtons(response.fileId,response.fileTableConditions);
-	    setMenuValue(response.fileTableConditions);
 	    setFolderFunctions(response.fileId);  // フォルダのダブルクリック処理を追加
 	    setFolderMoveFunctions(response.fileId);  // フォルダのダブルクリック処理を追加
 	    const submissionTargetValue = document.getElementById('submission_target').value;
-	    setFileFunctions(getSubmissionTypeCheckFunc(submissionTargetValue));//ファイル背景色設定
+	    const targetFileCnt = setFileFunctions(getSubmissionTypeCheckFunc(submissionTargetValue));//ファイル背景色設定
 	    setFileTargetSelectNote(document.getElementById('drive_file_target_select_note'),
 				    submissionTargetValue); // 対象課題選択の注意書き設定
+	    addFileCopyButton(response.fileId,targetFileCnt);   // ファイルコピーボタンを追加
+	    setMenuValue(response.fileTableConditions);
           }).withFailureHandler(function(response) {
 	    document.getElementById('drive_folder_table').innerHTML = 'データ取得エラー';
           }).makeDriveDataList(prevId,fileId);

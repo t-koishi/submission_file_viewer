@@ -8,11 +8,16 @@ function doGet(e) {
   return HtmlService.createTemplateFromFile('index').evaluate();
 }
 
-function makeSubmissionFileTable(fileId,fileTableConditions)
+function saveProperties(fileTableConditions)
 {
   const userProp = PropertiesService.getUserProperties();    // User Properties を取得
   userProp.setProperty(PROP_KEY_FILE_TABLE_CONDITION,
 		       JSON.stringify(fileTableConditions)); // 課題ファイル表示条件を保存
+}
+
+function makeSubmissionFileTable(fileId,fileTableConditions)
+{
+  saveProperties(fileTableConditions);
   return makeFileTable(makeFileList(fileId,fileTableConditions.tableSort,
 				    fileTableConditions.submissionTarget,
 				    fileTableConditions.getCommentsFlag),
@@ -144,8 +149,9 @@ function makeFileTable(fileList,imageWidth)
       departmentName = ', '+elem.student.departmentName;
     }
     html+=(`<tr><td>${index+1}/${listCnt}</td><td colspan="2">`+
-	   `${elem.student.id} ${elem.student.name}${departmentName} `+ // 学生ID,氏名,学部名を出力
-	   `[${elem.submitTime}]</td></tr>\n`);                // 最後のファイルの日時
+	   `${elem.student.id} ${elem.student.name}, `+        // 学生ID,氏名
+	   `${elem.user.emailAddress}${departmentName} `+      // email,学部名
+ 	   `[${elem.submitTime}]</td></tr>\n`);                // 最後のファイルの日時
     let fileCnt = elem.files.length;                           // ファイルの個数を設定
     elem.files.forEach((fileElem,fileIndex) => {               // ファイルのループ
       const file = fileElem.file;
@@ -410,4 +416,172 @@ function outputCsv(csvData,folderTitle)
   const outputFileName = `${folderTitle}_${datetime}_files.csv`;
   DriveApp.createFile(outputFileName, csvData);
   return outputFileName;
+}
+
+function checkMimeTypeFolderNeq(type){
+  return type != MimeType.FOLDER;    // フォルダでないことを判定
+}
+
+function runCopy(targetFolderId,fileTableConditions)
+{
+  saveProperties(fileTableConditions);
+  const folderInfo = Drive.Files.get(targetFolderId);   // コピー対象フォルダの情報取得
+  const parentFolderInfo = Drive.Files.get(folderInfo.parents[0].id);
+  const files =                                         // コピー対象ファイル取得
+	getFiles(`"${targetFolderId}" in parents and trashed = false`,
+		 checkMimeTypeFolderNeq);
+  const outputFolder = makeOutputFolder(parentFolderInfo.title,
+					folderInfo.title);        // 出力フォルダ作成
+  const resultLog = copyFiles(files,folderInfo,outputFolder,
+			      fileTableConditions.submissionTarget);     // コピー実行
+  return {targetFolderName:folderInfo.title,
+	  outputFolderName:outputFolder.getName(),result:resultLog};
+}
+
+function getFiles(query,checkMimeType)
+{
+  const files = [];
+  let pageToken;
+  do {
+    const list = Drive.Files.list({
+      q: query,
+      maxResults: 100,
+      pageToken: pageToken
+    });
+    if(list.items && list.items.length > 0) {
+      for (var i = 0; i < list.items.length; i++) {
+	if(checkMimeType(list.items[i].mimeType)){  // 種類を判定
+          files.push(list.items[i]);
+	}
+      }
+    }
+    pageToken = list.nextPageToken;
+  } while (pageToken);
+  return files;
+}
+
+function makeFolder(folderName,parentFolder)
+{
+  // フォルダ名で指定したフォルダがなかったら作る
+  const folderTemp = parentFolder.getFoldersByName(folderName);
+  let folder;
+  if(!folderTemp.hasNext()){
+    folder = parentFolder.createFolder(folderName);   // なかったら作成
+  } else {
+    folder = folderTemp.next();                       // あったら取得
+  }
+  return folder;
+}
+
+function makeOutputFolder(targetClassrommFolderName,targetFolderName)
+{
+  // 出力フォルダの作成
+  const rootFolder = makeFolder('Classroom_archives',DriveApp);             // root のフォルダ
+  const classroomFolder = makeFolder(targetClassrommFolderName,rootFolder); // Classroom フォルダ
+  const subFolder = makeFolder('copied_submission_files',classroomFolder);  // サブフォルダ
+  const timeZone = Session.getScriptTimeZone();  // 日時作成用にタイムゾーンを取得
+  const datetime = Utilities.formatDate(new Date(), timeZone,'yyyyMMdd');
+  return makeFolder(`${targetFolderName}_copied_${datetime}`,subFolder);//コピー先フォルダ作成
+}
+
+function copyFiles(files,folderInfo,outputFolder,submissionTarget)
+{
+  const folderOwnerEmailAddress = folderInfo.owners[0].emailAddress // 対象フォルダのオーナー取得
+  const fileNameTable = {};         // ファイル名をキーとした連想配列
+  files.forEach(elem => {
+    if(fileNameTable[elem.title]){  // 同じファイル名のファイルの数を数える
+      fileNameTable[elem.title]++;
+    } else {
+      fileNameTable[elem.title] = 1;
+    }
+  });
+  for(let key in fileNameTable){
+    if(fileNameTable[key] == 1){    // ファイル数が1なら要素を削除
+      delete fileNameTable[key];
+    }
+  }
+  const existFiles = getFiles(`"${outputFolder.getId()}" in parents and trashed = false`,
+			     checkMimeTypeFolderNeq);
+  const existFileTable = {};           // 出力フォルダにあるファイルの名前をキーとした連想配列
+  existFiles.forEach(elem => {
+    existFileTable[elem.title] = true; // 出力フォルダにあるファイルの名前を保存
+  });
+  let targetFileCnt = 0;
+  for(let fileIdx = 0; fileIdx < files.length; fileIdx++){
+    if(files[fileIdx].sharingUser){  // sharingUser 情報があるのが提出ファイル
+      targetFileCnt++;
+    }
+  }
+  let infoFileFolder;
+  let copyFileCnt = 0;
+  let skipFileCnt = 0;
+  for(let fileIdx = 0; fileIdx < files.length; fileIdx++){
+    const elem = files[fileIdx];
+    let type, user;
+    if(elem.owners[0].emailAddress == folderOwnerEmailAddress){ // オーナーがフォルダのオーナと同じ
+      if(elem.sharingUser){
+	type = 'ow_t';     // オーナーが自分, 提出済み未返却
+      } else {
+	type = 'unknown';  // 不明
+      }
+    } else {
+      if(elem.sharingUser){
+	type = 'ow_s';     // オーナーが自分以外, 提出済み返却済み?
+      } else {
+	type = 'disable';  // 削除された課題？
+      }
+    }
+    const submissionTargetType = {'turned_in':'ow_t'}; // UI の select の値と type の対応
+    elem.submissionType = type;
+    if((submissionTarget != 'all' && elem.submissionType == submissionTargetType[submissionTarget]) ||
+       (submissionTarget == 'all' && (elem.submissionType == 'ow_t' ||
+				      elem.submissionType == 'ow_s'))){
+      const email = elem.sharingUser.emailAddress;
+      let studentId = email;                      // 学生IDをを仮設定
+      if(typeof getStudentId == 'function'){
+	studentId = getStudentId(studentId);      // getStudentId 関数があったら学生IDを再設定
+      }
+      let studentName = elem.sharingUser.displayName;
+      if(typeof getName == 'function'){
+	studentName = getName(studentName).nameJ; // 日本語名のみを使う
+      }
+//      const condition = (studentId == '20730047');
+      const condition = true;
+      if(condition){
+	let fileName = elem.title;
+	if(fileNameTable[elem.title]){                         // 同じファイル名のファイルがあったら
+	  fileName = `${fileName}(${fileNameTable[elem.title]})`; // 括弧付きで番号を追加
+	  fileNameTable[elem.title]--;
+	}
+	let outputFileName = `${studentId}_${studentName}_${elem.submissionType}_${fileName}`;
+	const file = DriveApp.getFileById(elem.id);
+	if(file.getMimeType() == 'image/heif'){
+	  outputFileName += '.heic';
+	}
+	if(!existFileTable[outputFileName]){            // ファイルがなかったら
+	  let activity, fileInfo;
+	  try{
+	    activity = DriveActivity.Activity.query({ancestorName: 'items/'+elem.id});
+	    fileInfo = Drive.Files.get(elem.id);
+	  } catch(error){
+	    return {targetFileCnt, copyFileCnt, skipFileCnt, error};
+	  }
+	  if(!infoFileFolder){
+	    infoFileFolder = makeFolder('info_files',outputFolder);
+	  }
+	  infoFileFolder.createFile(`${outputFileName}_info.json`, // activity, file を保存
+				    JSON.stringify({activity,file:fileInfo}));
+	  try{
+	    file.makeCopy(outputFileName,outputFolder);   // ファイルをコピー
+	  } catch(error){
+	    return {targetFileCnt, copyFileCnt, skipFileCnt, error};
+	  }
+	  copyFileCnt++;
+	} else {
+	  skipFileCnt++;
+	}
+      }
+    }
+  }
+  return {targetFileCnt, copyFileCnt, skipFileCnt};
 }

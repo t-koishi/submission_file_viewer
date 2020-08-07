@@ -3,9 +3,12 @@
    display: inline-block;
    margin: 0.1em 1em 0.1em 0em;
  }
- div#drive_file_ctrl_elems { /* UIの要素 */
+ div#drive_file_ctrl_elems { /* UIの要素全体 */
    margin-top: 0.5em;
    margin-bottom: 0.5em;
+ }
+ div#drive_file_ctrl_elems>div { /* UIの各要素 */
+   margin-bottom: 0.3em;
  }
  span#drive_file_target_select_note { /* 対象課題選択の注意書き */
    font-size:80%;
@@ -77,7 +80,7 @@
    display: none;                /* メニューの配置と装飾 */
    position:absolute;
    top : 20px;
-   left : -170px;
+   left : -220px;
    border: 1px solid #CCC; 
    border-radius: 5px;
    background: #F7F7F7;
@@ -96,7 +99,7 @@
  .message_panel {               /* メッセージ表示用 */
    position:absolute;
    top : 0px;
-   left : -170px;
+   left : -220px;
    border: 1px solid #CCC; 
    border-radius: 5px;
    background: #FCFCFC;
