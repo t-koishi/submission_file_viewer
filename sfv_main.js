@@ -422,7 +422,7 @@ function checkMimeTypeFolderNeq(type){
   return type != MimeType.FOLDER;    // フォルダでないことを判定
 }
 
-function runCopy(targetFolderId,fileTableConditions)
+function runCopy(targetFolderId,fileTableConditions,copySettings)
 {
   saveProperties(fileTableConditions);
   const folderInfo = Drive.Files.get(targetFolderId);   // コピー対象フォルダの情報取得
@@ -431,8 +431,9 @@ function runCopy(targetFolderId,fileTableConditions)
 	getFiles(`"${targetFolderId}" in parents and trashed = false`,
 		 checkMimeTypeFolderNeq);
   const outputFolder = makeOutputFolder(parentFolderInfo.title,
-					folderInfo.title);        // 出力フォルダ作成
-  const resultLog = copyFiles(files,folderInfo,outputFolder,
+					folderInfo.title,
+					copySettings.copy_target_folder_name); // 出力フォルダ作成
+  const resultLog = copyFiles(files,folderInfo,outputFolder,copySettings,
 			      fileTableConditions.submissionTarget);     // コピー実行
   return {targetFolderName:folderInfo.title,
 	  outputFolderName:outputFolder.getName(),result:resultLog};
@@ -473,12 +474,12 @@ function makeFolder(folderName,parentFolder)
   return folder;
 }
 
-function makeOutputFolder(targetClassrommFolderName,targetFolderName)
+function makeOutputFolder(targetClassrommFolderName,targetFolderName,copyTargetFolderName)
 {
   // 出力フォルダの作成
   const rootFolder = makeFolder('Classroom_archives',DriveApp);             // root のフォルダ
   const classroomFolder = makeFolder(targetClassrommFolderName,rootFolder); // Classroom フォルダ
-  const subFolder = makeFolder('copied_submission_files',classroomFolder);  // サブフォルダ
+  const subFolder = makeFolder(copyTargetFolderName,classroomFolder);  // サブフォルダ
   const timeZone = Session.getScriptTimeZone();  // 日時作成用にタイムゾーンを取得
   const datetime = Utilities.formatDate(new Date(), timeZone,'yyyyMMdd');
   return makeFolder(`${targetFolderName}_copied_${datetime}`,subFolder);//コピー先フォルダ作成
@@ -525,7 +526,38 @@ function addFileCounter(mimeType,fileName,counter)
   return fileName;
 }
 
-function copyFiles(files,folderInfo,outputFolder,submissionTarget)
+function setLatest(files)
+{
+  // 学生ごとの最新提出ファイルを見つける
+  const fileUserTable = {};      // メールアドレスをキーにしたハッシュ
+  for(let fileIdx = 0; fileIdx < files.length; fileIdx++){
+    const elem = files[fileIdx];
+    if(elem.sharingUser){        // 一度でも提出されたファイルを対象とする
+      if(fileUserTable[elem.sharingUser.emailAddress]){
+	fileUserTable[elem.sharingUser.emailAddress].push(elem);
+      } else {
+	fileUserTable[elem.sharingUser.emailAddress] = [elem];
+      }
+    }
+  }
+  Object.keys(fileUserTable).forEach(key => {  // キーでループ
+    const elem = fileUserTable[key];
+    if(elem.length > 1){             // ファイルが2個以上なら
+      elem.sort((a,b)=>{             // 提出日時でソート（最新が先頭に来る）
+	if(a.modifiedDate < b.modifiedDate){
+	  return 1;
+	} else if(a.modifiedDate > b.modifiedDate){
+	  return -1;
+	} else {
+	  return 0;
+	}
+      });
+    }
+    elem[0].latest = true;  // 最新のものに latest を付ける
+  });
+}
+
+function copyFiles(files,folderInfo,outputFolder,copySettings,submissionTarget)
 {
   const folderOwnerEmailAddress = folderInfo.owners[0].emailAddress // 対象フォルダのオーナー取得
   const existFiles = getFiles(`"${outputFolder.getId()}" in parents and trashed = false`,
@@ -534,6 +566,10 @@ function copyFiles(files,folderInfo,outputFolder,submissionTarget)
   existFiles.forEach(elem => {
     existFileTable[elem.title] = true; // 出力フォルダにあるファイルの名前を保存
   });
+
+  if(copySettings.copy_target == 'latest'){
+    setLatest(files);                  // 最新提出ファイルの検出
+  }
 
   // ファイルタイプの設定、対象ファイル数のカウント、各学生の重複ファイル数のカウント
   const fileNameTable = {};         // ファイル名をキーとした連想配列
@@ -560,13 +596,16 @@ function copyFiles(files,folderInfo,outputFolder,submissionTarget)
     if((submissionTarget != 'all' && elem.submissionType == submissionTargetType[submissionTarget]) ||
        (submissionTarget == 'all' && (elem.submissionType == 'ow_t' ||
 				      elem.submissionType == 'ow_s'))){
-      targetFileCnt++;
-      elem.isTarget = true;;
-      const fileNameTableKey = makeFileNameTableKey(elem);
-      if(fileNameTable[fileNameTableKey]){  // 各学生で同じファイル名のファイルの数を数える
-	fileNameTable[fileNameTableKey]++;
-      } else {
-	fileNameTable[fileNameTableKey] = 1;
+      if((copySettings.copy_target != 'latest') ||
+	 (copySettings.copy_target == 'latest' && elem.latest)){
+	targetFileCnt++;
+	elem.isTarget = true;;
+	const fileNameTableKey = makeFileNameTableKey(elem);
+	if(fileNameTable[fileNameTableKey]){  // 各学生で同じファイル名のファイルの数を数える
+	  fileNameTable[fileNameTableKey]++;
+	} else {
+	  fileNameTable[fileNameTableKey] = 1;
+	}
       }
     }
   }
@@ -602,7 +641,21 @@ function copyFiles(files,folderInfo,outputFolder,submissionTarget)
 	  fileName = addFileCounter(file.getMimeType(),fileName,fileNameTable[fileNameTableKey]);
 	  fileNameTable[fileNameTableKey]--;
 	}
-	let outputFileName = `${studentId}_${studentName}_${elem.submissionType}_${fileName}`;
+	// copySettings に応じて出ファイル名を設定する
+	let outputFileName = '';
+	if(copySettings.prefix != ''){
+	  outputFileName += copySettings.prefix;
+	}
+	const addOutputFileName = (key,value)=>{
+	  if(copySettings[key]){
+	    if(outputFileName != '') outputFileName += '_';
+	    outputFileName += value;
+	  }
+	}
+	addOutputFileName('student_id',studentId);
+	addOutputFileName('student_name',studentName);
+	addOutputFileName('submission_type',elem.submissionType);
+	addOutputFileName('orig_filename',fileName);
 	outputFileName = addFileExt(file.getMimeType(),outputFileName); // 拡張子の追加
 	
 	if(!existFileTable[outputFileName]){            // ファイルがなかったら

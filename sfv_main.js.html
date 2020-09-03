@@ -375,39 +375,145 @@
    targetElem.appendChild(table);
  }
 
+ function setCopyButtonNote(copyTargetFolderName=false,folderTitle=false,note=false){
+   // 「ファイルコピー」ボタンの注意書きの設定
+   if(copyTargetFolderName === false){ // 書き換えの場合は値を取得する
+     copyTargetFolderName = document.getElementById('copy_target_folder_name').innerHTML;
+   }
+   if(folderTitle === false){          // 書き換えの場合は値を取得する
+     folderTitle = document.getElementById('copy_folder_title').innerHTML;
+   } else {
+     folderTitle += '_copied_年月日';
+   }
+   let outputFileName = '';
+   const prefix = document.getElementById('copy_name_user_prefix');
+   if(prefix){
+     outputFileName += prefix.value;
+   }
+   const addOutputFileName = (id,text) => {
+     const copyNameCheckBox = document.getElementById(id);
+     if(copyNameCheckBox){            // チェックボックスが設定されていたら
+       if(copyNameCheckBox.checked){  // チェックボックスの値に応じる
+	 if(outputFileName != '') outputFileName += '_';
+	 outputFileName += text;
+       }
+     } else {                         // チェックボックスのデフォルトはONという前提
+       if(outputFileName != '') outputFileName += '_';
+       outputFileName += text;
+     }}
+   addOutputFileName('copy_name_student_id','{学籍番号}');
+   addOutputFileName('copy_name_student_name','{学生名}');
+   addOutputFileName('copy_name_submission_type','{オーナー情報}');
+   addOutputFileName('copy_name_orig_filename','{元ファイル名}');
+   if(note === false){  // 書き換えの場合は値を取得する
+     note = document.getElementById('drive_file_copy_file_note');
+   }
+   note.innerHTML =
+     '出力ファイル: マイドライブ / Classroom_archives /（科目名）/ '+
+     `<span id="copy_target_folder_name">${copyTargetFolderName}</span> / `+
+     `<span id="copy_folder_title">${folderTitle}</span> / ${outputFileName}`;
+ }
+
  function addFileCopyButton(fileId,targetFileCnt){
    // 「ファイルコピー」のボタンを追加
+
+   const copyTargetType = {all:{selectInfo:{value:'all', text:'全て'},
+				folderName:'copied_submission_files'},
+			   latest:{selectInfo:{value:'latest', text:'最新のみ'},
+				   folderName:'copied_latest_submission_files'}};
+
    const btn = document.createElement('button');   // ファイルコピーボタンを作成
    btn.id = 'drive_file_copy_file_button';
    btn.classList.add('exe');
    btn.innerHTML = 'ファイルコピー';
    const parent = document.getElementById('drive_file_copy_file');
+   const buttonSettings = document.createElement('div');
+   buttonSettings.id = 'button_settings';
    btn.onclick = e => {                      // ボタンが押されたときのコールバック
+     const copySettings =
+       {copy_target:document.getElementById('copy_target').value,
+	copy_target_folder_name:document.getElementById('copy_target_folder_name').innerHTML,
+	prefix:document.getElementById('copy_name_user_prefix').value,
+	student_id:document.getElementById('copy_name_student_id').checked,
+	student_name:document.getElementById('copy_name_student_name').checked,
+	submission_type:document.getElementById('copy_name_submission_type').checked,
+	orig_filename:document.getElementById('copy_name_orig_filename').checked};
      const output = document.getElementById('drive_file_table');
-     output.innerHTML = 'コピー中 ... ';
-     google.script.run.
-            withSuccessHandler(function(response) {
-	      output.innerHTML = '';
-	      addOutputTableLine('出力フォルダ名',response.outputFolderName,output);
-	      addOutputTableLine('対象ファイル数',response.result.targetFileCnt,output);
-	      addOutputTableLine('コピーファイル数',response.result.copyFileCnt,output);
-	      addOutputTableLine('既存ファイル数',response.result.skipFileCnt,output);
-	      addOutputTableLine('実行結果',!response.result.error ? '正常終了':'エラー',output);
-            }).withFailureHandler(function(response) {
-	      output.innerHTML = 'コピーエラー';
-            }).runCopy(fileId,getConditionsForPropertiesService());
+     if(!copySettings.student_id && !copySettings.student_name && !copySettings.orig_filename){
+       output.insertAdjacentHTML('afterbegin',
+				 '<div style="color:#c00">ファイルコピーエラー: 出力ファイル名設定では「学籍番号」「学生氏名」「元のファイル名」のうち最低ひとつはチェックしてください</div>');
+     } else {
+       output.innerHTML = 'コピー中 ... ';
+       google.script.run.
+              withSuccessHandler(function(response) {
+		output.innerHTML = '';
+		addOutputTableLine('出力フォルダ名',response.outputFolderName,output);
+		addOutputTableLine('対象ファイル数',response.result.targetFileCnt,output);
+		addOutputTableLine('コピーファイル数',response.result.copyFileCnt,output);
+		addOutputTableLine('既存ファイル数',response.result.skipFileCnt,output);
+		addOutputTableLine('実行結果',!response.result.error ? '正常終了':'エラー',output);
+              }).withFailureHandler(function(response) {
+		output.innerHTML = 'コピーエラー';
+              }).runCopy(fileId,getConditionsForPropertiesService(), copySettings);
+     }
    }
-   parent.appendChild(btn);
+   buttonSettings.appendChild(btn);
+   parent.appendChild(buttonSettings);
 
-   const note = document.createElement('span');
+   const note = document.createElement('div');
    note.id = 'drive_file_copy_file_note';
-   const foldrTitle = document.getElementById('folder_title').innerHTML;
-   note.innerHTML =
-     `（「マイドライブ / Classroom_archives /（科目名）/ copied_submission_files / `+
-     `${foldrTitle}」に「課題対象」で対象に指定されているファイルをコピーします）`;
+   const folderTitle = document.getElementById('folder_title').innerHTML;
+   setCopyButtonNote(copyTargetType['all'].folderName,folderTitle,note);
    parent.appendChild(note);
 
+   addSelect('copy_target','コピー対象:',[copyTargetType.all.selectInfo,
+					  copyTargetType.latest.selectInfo],
+	     'button_settings','copy_target_all',
+	     e => {
+	       // 値が変わったら note に書いてあるフォルダ名やファイル名を変更
+	       setCopyButtonNote(copyTargetType[e.currentTarget.value].folderName,folderTitle);
+	     });
+
+   addCopyFileNameSettings(buttonSettings);
+   
    changeFileCopyButtonStatus(targetFileCnt,btn,note);
+ }
+
+ function addCopyFileNameSettings(parent){
+   // 出力ファイル名設定のUI作成
+   const title = document.createElement('span');
+   title.innerHTML = '出力ファイル名:[';
+   parent.appendChild(title);
+   let firstElem = true;
+   const addElem = (id,labelText,type,attrib)=>{
+     const label = document.createElement('label');
+     label.innerHTML = labelText;
+     if(!firstElem){
+       label.setAttribute('style','margin-left:.7em;');
+     } else {
+       firstElem = false;
+     }
+     title.appendChild(label);
+     const input = document.createElement('input');
+     input.id = id;
+     input.type = type;
+     if(attrib){
+       input.setAttribute(attrib.key,attrib.value);
+     }
+     if(type == 'text'){
+       input.addEventListener('input',e=>{setCopyButtonNote();},false);
+     }
+     if(type == 'checkbox'){
+       input.addEventListener('change',e=>{setCopyButtonNote();},false);
+     }
+     label.appendChild(input);
+   }
+   addElem('copy_name_user_prefix','追加先頭文字:','text', {key:'style',value:'width:60px;'});
+   addElem('copy_name_student_id','学籍番号:','checkbox', {key:'checked',value:'checked'});
+   addElem('copy_name_student_name','学生氏名:','checkbox', {key:'checked',value:'checked'});
+   addElem('copy_name_submission_type','オーナー情報:','checkbox', {key:'checked',value:'checked'});
+   addElem('copy_name_orig_filename','元ファイル名:','checkbox', {key:'checked',value:'checked'});
+   title.insertAdjacentHTML('beforeend',']');
  }
 
  function changeFileCopyButtonStatus(targetFileCnt,btn,note){
