@@ -383,7 +383,7 @@
    if(folderTitle === false){          // 書き換えの場合は値を取得する
      folderTitle = document.getElementById('copy_folder_title').innerHTML;
    } else {
-     folderTitle += '_copied_年月日';
+     folderTitle += '_copied_{年月日}';
    }
    let outputFileName = '';
    const prefix = document.getElementById('copy_name_user_prefix');
@@ -405,11 +405,18 @@
    addOutputFileName('copy_name_student_name','{学生名}');
    addOutputFileName('copy_name_submission_type','{オーナー情報}');
    addOutputFileName('copy_name_orig_filename','{元ファイル名}');
+   const suffix = document.getElementById('copy_name_user_suffix');
+   if(suffix){
+     if(outputFileName != '' && suffix.value != ''){
+       outputFileName += '_';
+     }
+     outputFileName += suffix.value;
+   }
    if(note === false){  // 書き換えの場合は値を取得する
      note = document.getElementById('drive_file_copy_file_note');
    }
    note.innerHTML =
-     '出力ファイル: マイドライブ / Classroom_archives /（科目名）/ '+
+     '出力ファイル: マイドライブ / Classroom_archives / {科目名} / '+
      `<span id="copy_target_folder_name">${copyTargetFolderName}</span> / `+
      `<span id="copy_folder_title">${folderTitle}</span> / ${outputFileName}`;
  }
@@ -434,6 +441,7 @@
        {copy_target:document.getElementById('copy_target').value,
 	copy_target_folder_name:document.getElementById('copy_target_folder_name').innerHTML,
 	prefix:document.getElementById('copy_name_user_prefix').value,
+	suffix:document.getElementById('copy_name_user_suffix').value,
 	student_id:document.getElementById('copy_name_student_id').checked,
 	student_name:document.getElementById('copy_name_student_name').checked,
 	submission_type:document.getElementById('copy_name_submission_type').checked,
@@ -508,11 +516,12 @@
      }
      label.appendChild(input);
    }
-   addElem('copy_name_user_prefix','追加先頭文字:','text', {key:'style',value:'width:60px;'});
+   addElem('copy_name_user_prefix','先頭追加文字:','text', {key:'style',value:'width:60px;'});
    addElem('copy_name_student_id','学籍番号:','checkbox', {key:'checked',value:'checked'});
    addElem('copy_name_student_name','学生氏名:','checkbox', {key:'checked',value:'checked'});
    addElem('copy_name_submission_type','オーナー情報:','checkbox', {key:'checked',value:'checked'});
    addElem('copy_name_orig_filename','元ファイル名:','checkbox', {key:'checked',value:'checked'});
+   addElem('copy_name_user_suffix','末尾追加文字:','text', {key:'style',value:'width:60px;'});
    title.insertAdjacentHTML('beforeend',']');
  }
 

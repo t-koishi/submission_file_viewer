@@ -656,6 +656,12 @@ function copyFiles(files,folderInfo,outputFolder,copySettings,submissionTarget)
 	addOutputFileName('student_name',studentName);
 	addOutputFileName('submission_type',elem.submissionType);
 	addOutputFileName('orig_filename',fileName);
+	if(copySettings.suffix != ''){
+	  if(outputFileName != ''){
+	    outputFileName += '_';
+	  }
+	  outputFileName += copySettings.suffix;
+	}
 	outputFileName = addFileExt(file.getMimeType(),outputFileName); // 拡張子の追加
 	
 	if(!existFileTable[outputFileName]){            // ファイルがなかったら
