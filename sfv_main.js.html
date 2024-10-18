@@ -188,8 +188,10 @@
        updateFunc(imageElem);                      // 画像描画の情報更新処理
      }
      const fid = imageElem.div.id.substring('file_id_'.length);   // id からファイル ID を取得
-     imageElem.image.src = ('https://drive.google.com/uc?export=view&id='+ // 画像の再読込
-			    fid+'&usp=sharing&'+imageElem.div.dataset.reloadCnt)
+     // imageElem.image.src = ('https://drive.google.com/uc?export=view&id='+ // 画像の再読込
+     //    		    fid+'&usp=sharing&'+imageElem.div.dataset.reloadCnt)
+     imageElem.image.src = ('https://drive.google.com/thumbnail?id='+ // 画像の再読込
+        		    fid+'&sz=w1000')                          //（更新 2024/10/18）
      const ctx = imageElem.canvas.getContext('2d');
      ctx.clearRect(0,0,imageElem.canvas.width,imageElem.canvas.height);          // 画像消去
      if(showLoading){
@@ -266,8 +268,10 @@
      elem.appendChild(canvas);                            // div に canvas 追加
      const image = new Image();
      image.dataset.fileId = elem.id;
-     image.src = ('https://drive.google.com/uc?export=view&id='+
-		  fileId+'&usp=sharing&0');               // 画像読み込み
+     // image.src = ('https://drive.google.com/uc?export=view&id='+
+     //    	  fileId+'&usp=sharing&0');               // 画像読み込み（エラーになる）
+     image.src = ('https://drive.google.com/thumbnail?id='+
+		  fileId+'&sz=w1000');                    // 画像読み込み（更新 2024/10/18）
      image.onload = (e) => {                              // 画像読み込み後の処理
        const ctx = canvas.getContext('2d');
        ctx.clearRect(0,0,canvas.width,canvas.height);     // 画像消去
@@ -424,10 +428,10 @@
  function addFileCopyButton(fileId,targetFileCnt){
    // 「ファイルコピー」のボタンを追加
 
-   const copyTargetType = {all:{selectInfo:{value:'all', text:'全て'},
-				folderName:'copied_submission_files'},
-			   latest:{selectInfo:{value:'latest', text:'最新のみ'},
-				   folderName:'copied_latest_submission_files'}};
+   const copyTargetType = {latest:{selectInfo:{value:'latest', text:'最新のみ'},
+				   folderName:'copied_latest_submission_files'},
+                           all:{selectInfo:{value:'all', text:'全て'},
+	                        folderName:'copied_submission_files'}};
 
    const btn = document.createElement('button');   // ファイルコピーボタンを作成
    btn.id = 'drive_file_copy_file_button';
@@ -439,6 +443,7 @@
    btn.onclick = e => {                      // ボタンが押されたときのコールバック
      const copySettings =
        {copy_target:document.getElementById('copy_target').value,
+        copy_file_type:document.getElementById('copy_file_type').value,
 	copy_target_folder_name:document.getElementById('copy_target_folder_name').innerHTML,
 	prefix:document.getElementById('copy_name_user_prefix').value,
 	suffix:document.getElementById('copy_name_user_suffix').value,
@@ -459,7 +464,7 @@
 		addOutputTableLine('対象ファイル数',response.result.targetFileCnt,output);
 		addOutputTableLine('コピーファイル数',response.result.copyFileCnt,output);
 		addOutputTableLine('既存ファイル数',response.result.skipFileCnt,output);
-		addOutputTableLine('実行結果',!response.result.error ? '正常終了':'エラー',output);
+		addOutputTableLine('実行結果',!response.result.error ? '正常終了':'エラーあり',output);
               }).withFailureHandler(function(response) {
 		output.innerHTML = 'コピーエラー';
               }).runCopy(fileId,getConditionsForPropertiesService(), copySettings);
@@ -471,16 +476,20 @@
    const note = document.createElement('div');
    note.id = 'drive_file_copy_file_note';
    const folderTitle = document.getElementById('folder_title').innerHTML;
-   setCopyButtonNote(copyTargetType['all'].folderName,folderTitle,note);
+   const defaultCopyTargetType = 'latest'; // コピー対象のデフォルト値
+   setCopyButtonNote(copyTargetType[defaultCopyTargetType].folderName,folderTitle,note);
    parent.appendChild(note);
 
-   addSelect('copy_target','コピー対象:',[copyTargetType.all.selectInfo,
-					  copyTargetType.latest.selectInfo],
-	     'button_settings','copy_target_all',
+   addSelect('copy_target','コピー対象:',[copyTargetType.latest.selectInfo,
+					  copyTargetType.all.selectInfo],
+	     'button_settings',defaultCopyTargetType,
 	     e => {
 	       // 値が変わったら note に書いてあるフォルダ名やファイル名を変更
 	       setCopyButtonNote(copyTargetType[e.currentTarget.value].folderName,folderTitle);
-	     });
+   });
+   addSelect('copy_file_type','ファイル種類:',[{value:'pdf',text:'PDF'},
+				               {value:'all', text:'全て'}],
+	     'button_settings','PDF');
 
    addCopyFileNameSettings(buttonSettings);
    
